@@ -1,4 +1,4 @@
 streamlit>=1.13.0
 streamlit-aggrid==0.2.2.post4
-streamlit_option_menu==0.19.3
+streamlit_option_menu==0.3.2
 plotly==5.11.0
