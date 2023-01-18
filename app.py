@@ -52,7 +52,7 @@ def get_data(df_stations: pd.DataFrame):
 
 @st.experimental_memo
 def get_station_data():
-    df_stations = pd.read_csv(URL_STATIONS, sep=";", encoding="ANSI")
+    df_stations = pd.read_csv(URL_STATIONS, sep=";", encoding="cp1252")
     return df_stations
 
 
@@ -167,9 +167,8 @@ def get_temperature_data(station_df: pd.DataFrame, url_version):
     """
     lst = []
     for index, row in station_df.iterrows():
-        _df1 = pd.read_csv(row[url_version], sep=";", encoding="ANSI")
-        # _df2 = pd.read_csv(row['url_current_data'], sep=';', encoding='ANSI')
-        lst.append(_df1)
+        _df = pd.read_csv(row[url_version], sep=";", encoding="cp1252")
+        lst.append(_df)
     result = pd.concat(lst)
     result = rename_columns(result)
     if url_version == "url_verified_data":
