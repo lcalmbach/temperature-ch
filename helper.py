@@ -99,6 +99,7 @@ def show_table(df: pd.DataFrame, cols=[], settings={}):
     grid_response = AgGrid(
         df,
         gridOptions=gridOptions,
+        theme='dark',
         height=settings["height"],
         data_return_mode=DataReturnMode.AS_INPUT,
         update_mode=settings["update_mode"],

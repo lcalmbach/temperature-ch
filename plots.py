@@ -227,24 +227,24 @@ def histogram(df:pd.DataFrame, settings:dict):
     plot = plot.properties(title = settings['title'], width=settings['width'], height=settings['height'])
     return st.altair_chart(plot)
 
-def line_chart_3d(df, min, max):
+def line_chart_3d(df, settings: dict):
     def value_to_xy(value, month):
-        v = value - min
+        v = value - settings['min']
         # st.write(value, min ,v, month)
-        origin = (np.abs(min) + max)/2
+        origin = (np.abs(settings['min']) + settings['max'])/2
         theta_radians = 2*np.pi/12 * (month-1)
         x = origin + v * np.cos(theta_radians)
         y = origin + v * np.sin(theta_radians)
         return x,y
 
-    rad_max:float = np.abs(min) + max + 1
+    rad_max:float = np.abs(settings['min']) + settings['max'] + 1
     xl, yl, zl,clr  = [], [], [], [] 
     df['x'] = 0
     df['y'] = 0
     df['z'] = 0
 
     for index, row in df.iterrows():
-        x, y = value_to_xy(row['value'], row['month'])
+        x, y = value_to_xy(row[settings['value']], row['month'])
         z = row['year'] + row['month'] /12
         df.loc[index, 'x'] = x
         df.loc[index, 'y'] = y
@@ -254,12 +254,10 @@ def line_chart_3d(df, min, max):
     ##color schemas: https://plotly.com/python/colorscales/#colorscales-in-dash
     fig = px.scatter_3d(df,
         x='x', y='y', z='z',
-        color='value',
+        color=settings['value'],
         color_continuous_scale='edge',#px.colors.sequential.ed
-        
-
-        # this does not work
-        hover_data = {'year':True, 'month':True, 'value':  ':.1f', 'x': False, 'y': False, 'z': False},
+        title = settings['title'],
+        hover_data = {'year':True, 'month':True, settings['value']:  ':.1f', 'x': False, 'y': False, 'z': False},
     )
     fig.update_yaxes(visible=False, showticklabels=False)
     fig.update_xaxes(visible=False, showticklabels=False)

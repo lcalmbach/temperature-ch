@@ -21,7 +21,20 @@ class NbcnBrowser:
         self.data = self.get_data(self.df_stations_full)
         self._sel_station = ""
         self.station_data = pd.DataFrame()
-        self.resolution_options = ["Day", "Month", "Year"]
+        self.resolution_options = ["Year", "Month", "Day"]
+        self.parameter = "temp_avg"
+        self.parameter_options = [
+            "temp_avg",
+            "heating_deg_days",
+            "cooling_days",
+            "heating_days",
+        ]
+        self.parameter_titles = {
+            "temp_avg": "Avg Temperature [°C]",
+            "heating_deg_days": "Heating degree days",
+            "cooling_days": "Cooling days",
+            "heating_days": "Heating days",
+        }
 
     @property
     def sel_station(self):
@@ -119,22 +132,23 @@ class NbcnBrowser:
     def add_heat_cold_days_columns(self, df):
         # https://www.meteoschweiz.admin.ch/wetter/wetter-und-klima-von-a-bis-z/kuehltag.html
         # https://www.meteoschweiz.admin.ch/wetter/wetter-und-klima-von-a-bis-z.html
+
+        outside_temp = 12  # Heating degree days
+        room_temp = 20
         threshold_high = 18.3  # Cooling degree days
-        threshold_low = 12  # Heating degree days
-        df["cooling_deg_days"] = df.apply(
-            lambda x: x["temp_avg"] - threshold_high
-            if x["temp_avg"] > threshold_high
-            else 0,
-            axis=1,
-        )
+        # todo: find out official definition
+        # df["cooling_deg_days"] = df.apply(
+        #    lambda x: x["temp_avg"] - threshold_high
+        #    if x["temp_avg"] > threshold_high
+        #    else 0,
+        #    axis=1,
+        # )
         df["heating_deg_days"] = df.apply(
-            lambda x: threshold_high - x["temp_avg"]
-            if x["temp_avg"] < threshold_low
-            else 0,
+            lambda x: room_temp - x["temp_avg"] if x["temp_avg"] < outside_temp else 0,
             axis=1,
         )
         df["heating_days"] = df.apply(
-            lambda x: 1 if x["temp_avg"] < threshold_low else 0, axis=1
+            lambda x: 1 if x["temp_avg"] < outside_temp else 0, axis=1
         )
         df["cooling_days"] = df.apply(
             lambda x: 1 if x["temp_avg"] > threshold_high else 0, axis=1
@@ -264,7 +278,12 @@ class NbcnBrowser:
         return df
 
     def get_user_options(self, type: str):
-        with st.sidebar.expander("Settings", expanded=True):
+        with st.sidebar.expander("⚙️ Settings", expanded=True):
+            st.write(type)
+            if type == "time-series":
+                self.parameter = st.selectbox(
+                    "Parameter", options=self.parameter_options
+                )
             self.resolution = st.selectbox(
                 "Time Resolution", self.resolution_options, key="data_resolution"
             )
@@ -279,26 +298,60 @@ class NbcnBrowser:
                 self.show_average = st.checkbox("Show Average")
 
     def filter_data(self):
-        if self.resolution_options.index(self.resolution) == 0:
+        if self.resolution_options.index(self.resolution) == 2:
             df = self.data
             self.x_var = "date"
         elif self.resolution_options.index(self.resolution) == 1:
+            all_fields = [
+                "year",
+                "month",
+                "month_date",
+                "temp_avg",
+                "heating_deg_days",
+                "cooling_days",
+                "heating_days",
+            ]
             df = (
-                self.data[["year", "month", "month_date", "temp_avg"]]
+                self.data[all_fields]
                 .groupby(["year", "month", "month_date"])
-                .agg("mean")
+                .agg(
+                    {
+                        "temp_avg": ["mean"],
+                        "heating_deg_days": ["sum"],
+                        "cooling_days": ["sum"],
+                        "heating_days": ["sum"],
+                    }
+                )
                 .reset_index()
             )
+            # after aggregation, column names are composed field-agg
+            df.columns = all_fields
             self.x_var = "month_date"
-        elif self.resolution_options.index(self.resolution) == 2:
+        elif self.resolution_options.index(self.resolution) == 0:
+            all_fields = [
+                "year",
+                "year_date",
+                "temp_avg",
+                "heating_deg_days",
+                "cooling_days",
+                "heating_days",
+            ]
             df = (
-                self.data[["year", "year_date", "temp_avg"]]
+                self.data[all_fields]
                 .groupby(["year", "year_date"])
-                .agg("mean")
+                .agg(
+                    {
+                        "temp_avg": ["mean"],
+                        "heating_deg_days": ["sum"],
+                        "cooling_days": ["sum"],
+                        "heating_days": ["sum"],
+                    }
+                )
                 .reset_index()
             )
+            df.columns = all_fields
+            df = df[df["year"] < datetime.now().year]
             self.x_var = "year_date"
-
         if self.years != [self.year_min, self.year_max]:
             df = df[(df["year"] >= self.years[0]) & (df["year"] <= self.years[1])]
         return df
@@ -308,7 +361,7 @@ class NbcnBrowser:
         data_df = self.filter_data()
         st.write(data_df)
         csv = data_df.to_csv().encode("utf-8")
-        text = 'The table above includes some additional columns as compared to the original MeteoSuisse data. The original data can be downloaded [here](https://opendata.swiss/de/dataset/klimamessnetz-tageswerte).'
+        text = "The table above includes additional columns as compared to the original MeteoSuisse data. The original data can be downloaded [here](https://opendata.swiss/de/dataset/klimamessnetz-tageswerte)."
         st.markdown(text, unsafe_allow_html=True)
         st.download_button(
             label="Download data as CSV",
@@ -317,17 +370,16 @@ class NbcnBrowser:
             mime="text/csv",
         )
 
-
     def show_time_series(self, row):
         st.markdown(row.iloc[0]["station"])
         plot_df = self.filter_data()
         settings = {
             "x": self.x_var,
-            "y": "temp_avg",
+            "y": self.parameter,
             "color": "station",
             "x_title": "",
-            "y_title": "Temperature[°C]",
-            "tooltip": [self.x_var, "temp_avg"],
+            "y_title": self.parameter_titles[self.parameter],
+            "tooltip": [self.x_var, self.parameter],
             "width": 800,
             "height": 600,
             "title": "",
@@ -335,15 +387,15 @@ class NbcnBrowser:
             "show_average": self.show_average,
         }
         settings["y_domain"] = [
-            plot_df["temp_avg"].min() - 2,
-            plot_df["temp_avg"].max() + 2,
+            plot_df[self.parameter].min() - 2,
+            plot_df[self.parameter].max() + 2,
         ]
         plots.time_series_chart(plot_df, settings)
 
     def show_spiral(self, row):
         def aggregate_data(df, datasource_id: int):
             df = (
-                df[["year", "month", "temp_avg"]]
+                df[["year", "month", self.parameter]]
                 .groupby(["year", "month"])
                 .agg("mean")
                 .reset_index()
@@ -360,16 +412,23 @@ class NbcnBrowser:
             df["z_axis"] = df["year"] + df["month"] / 12
             return df
 
-        st.markdown(row.iloc[0]["station"])
+        station = row.iloc[0]["station"]
+        st.markdown(station)
         plot_options = [
             "Monthly average temperature",
             "Difference from climate normal (< 1900)",
         ]
         mode = st.radio(label="Show", options=plot_options)
-
-        temperature_df = aggregate_data(self.data, plot_options.index(mode))
+        mode_id = plot_options.index(mode)
+        temperature_df = aggregate_data(self.data, mode_id)
         min = np.floor(temperature_df["value"].min())
         max = min + np.ceil(temperature_df["value"].max()) + 0.5
-        plots.line_chart_3d(temperature_df, min, max)
+        title = [
+            f"Spiral View of average monthly temperature at {station}",
+            f"Spiral View of monthly temperature difference from preindustrial (<1900) climate normal at {station}",
+        ]
+        settings = {"min": min, "max": max, "value": "value", "title": title[mode_id]}
+
+        plots.line_chart_3d(temperature_df, settings)
         with st.expander("Show Data", expanded=False):
             st.table(temperature_df[["year", "month", "value"]])

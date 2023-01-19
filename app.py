@@ -8,11 +8,11 @@ import os
 from helper import show_table
 from swiss_nbcn import NbcnBrowser
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 __author__ = "Lukas Calmbach"
 __author_email__ = "lcalmbach@gmail.com"
-VERSION_DATE = "2023-18-01"
-my_name = "swiss NBCN Browser"
+VERSION_DATE = "2023-19-01"
+my_name = "Swiss NBCN Browser"
 SOURCE_URL = "https://opendata.swiss/de/dataset/klimamessnetz-tageswerte"
 GIT_REPO = "https://github.com/lcalmbach/temperature-ch"
 EMOJI = "🌡️"
@@ -22,7 +22,7 @@ def init():
     st.set_page_config(  # Alternate names: setup_page, page, layout
         initial_sidebar_state="auto",
         page_title=my_name,
-        page_icon=EMOJI,
+        page_icon="🌍",
         layout='wide',
     )
     load_css()
@@ -67,7 +67,7 @@ def main():
         st.markdown("[Swiss National Basic Climatological Network (Swiss NBCN) stations](https://www.meteoswiss.admin.ch/weather/measurement-systems/land-based-stations/swiss-national-basic-climatological-network.html)")
         app = NbcnBrowser()
         df_stations = app.station_list_disp
-        settings = {"selection_mode": "single", "fit_columns_on_grid_load": False}
+        settings = {"selection_mode": "single", "fit_columns_on_grid_load": False, 'height': 300}
         sel_row = show_table(df_stations, cols=[], settings=settings)
     
     if len(sel_row) > 0:
