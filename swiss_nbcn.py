@@ -1,12 +1,9 @@
 import streamlit as st
-from streamlit_lottie import st_lottie
 import pandas as pd
 import numpy as np
-import requests
 from datetime import datetime
 import os
 
-from helper import show_table
 import plots
 
 
