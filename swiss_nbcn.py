@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 
 import plots
+from helper import show_table
 
 
 URL_STATIONS = "https://data.geo.admin.ch/ch.meteoschweiz.klima/nbcn-tageswerte/liste-download-nbcn-d.csv"
@@ -209,10 +210,12 @@ class NbcnBrowser:
         date_min = date_min.iloc[0].strftime("%Y-%m-%d")
         date_max = df.loc[df["temp_max"] == date_max_val, "date"]
         date_max = date_max.iloc[0].strftime("%Y-%m-%d")
-        date_min_val = f"{date_min_val :.1f}"
-        date_max_val = f"{date_max_val :.1f}"
+
+        month_fields = ["year", "month", "temp_avg", "heating_deg_days"]
         month_stat = (
-            df[["year", "month", "temp_avg"]].groupby(["year", "month"]).agg("mean")
+            df[month_fields]
+            .groupby(["year", "month"])
+            .agg({"temp_avg": "mean", "heating_deg_days": "sum"})
         ).reset_index()
         min_month_val = month_stat["temp_avg"].min()
         max_month_val = month_stat["temp_avg"].max()
@@ -224,36 +227,64 @@ class NbcnBrowser:
         month_max = (
             f"{int(month_max.iloc[0]['year'])}-{int(month_max.iloc[0]['month'])}"
         )
-        min_month_val = f"{min_month_val :.1f}"
-        max_month_val = f"{max_month_val :.1f}"
+
+        year_fields = ["year", "temp_avg", "heating_deg_days"]
+        year_stat = (
+            df.loc[df["year"] < datetime.now().year, year_fields]
+            .groupby(["year"])
+            .agg({"temp_avg": "mean", "heating_deg_days": "sum"})
+            .reset_index()
+        )
+        year_stat.columns = year_fields
+
+        min_year_val = year_stat["temp_avg"].min()
+        max_year_val = year_stat["temp_avg"].max()
+        year_min = (year_stat.loc[year_stat["temp_avg"] == min_year_val, "year"]).iloc[
+            0
+        ]
+        year_max = (year_stat.loc[year_stat["temp_avg"] == max_year_val, "year"]).iloc[
+            0
+        ]
         result = {
             "Parameter": [
                 "Minimum temperature [°C]",
                 "Maximum temperature [°C]",
-                "Date for minimum temperature",
-                "Date for maximum temperature",
-                "Coldest month average temperature  [°C]",
-                "Hottest month average temperature  [°C]",
-                "Coldest month",
-                "Hottest month",
+                "Coldest monthly average temperature [°C]",
+                "Hottest monthly average temperature[°C]",
+                "Coldest yearly average temperature [°C]",
+                "Hottest yearly average temperature [°C]",
             ],
-            "Value": [
-                date_min_val,
-                date_max_val,
+            "Date": [
                 date_min,
                 date_max,
-                min_month_val,
-                max_month_val,
                 month_min,
                 month_max,
+                year_min,
+                year_max,
+            ],
+            "Value": [
+                f"{date_min_val :.1f}",
+                f"{date_max_val :.1f}",
+                f"{min_month_val :.1f}",
+                f"{max_month_val :.1f}",
+                f"{min_year_val :.1f}",
+                f"{max_year_val :.1f}",
             ],
         }
-        return pd.DataFrame(result)
+        return pd.DataFrame(result), month_stat, year_stat
+
+    def station_link(self, row):
+        return f"🔗[{row.iloc[0]['station']}](https://www.meteoswiss.admin.ch/services-and-publications/applications/measurement-values-and-measuring-networks.html#param=messnetz-klima&lang=en&station={row.iloc[0]['id']}&chart=year&compare=y)"
 
     def show_summary(self, row):
-        st.markdown(row.iloc[0]["station"])
-        tab = self.get_summary_table(self.data)
-        st.write(tab)
+        st.markdown(self.station_link(row))
+        summary, month_stat, year_stat = self.get_summary_table(self.data)
+        st.markdown(f"Summary {year_stat['year'].min()} - {year_stat['year'].max()}")
+        st.write(summary)
+        st.markdown("Yearly temperature average and heating degree days")
+        st.write(year_stat)
+        st.markdown("Monthly temperature average and heating degree days")
+        st.write(month_stat)
 
     def add_diff_column(self, data, climate_normal):
         data = data.join(
@@ -354,10 +385,11 @@ class NbcnBrowser:
         return df
 
     def show_data(self, row):
-        st.markdown(row.iloc[0]["station"])
+        st.markdown(self.station_link(row))
+        self.resolution = self.resolution_options[2]
         data_df = self.filter_data()
         st.write(data_df)
-        csv = data_df.to_csv().encode("utf-8")
+        csv = data_df.to_csv(index=False).encode("utf-8")
         text = "The table above includes additional columns as compared to the original MeteoSuisse data. The original data can be downloaded [here](https://opendata.swiss/de/dataset/klimamessnetz-tageswerte)."
         st.markdown(text, unsafe_allow_html=True)
         st.download_button(
@@ -368,7 +400,7 @@ class NbcnBrowser:
         )
 
     def show_time_series(self, row):
-        st.markdown(row.iloc[0]["station"])
+        st.markdown(self.station_link(row))
         plot_df = self.filter_data()
         settings = {
             "x": self.x_var,
@@ -377,15 +409,15 @@ class NbcnBrowser:
             "x_title": "",
             "y_title": self.parameter_titles[self.parameter],
             "tooltip": [self.x_var, self.parameter],
-            "width": 800,
-            "height": 600,
+            "width": 1000,
+            "height": 400,
             "title": "",
             "show_regression": self.show_regression,
             "show_average": self.show_average,
         }
         settings["y_domain"] = [
-            plot_df[self.parameter].min() - 2,
-            plot_df[self.parameter].max() + 2,
+            plot_df[self.parameter].min() - 1,
+            plot_df[self.parameter].max() + 1,
         ]
         plots.time_series_chart(plot_df, settings)
 
@@ -406,11 +438,10 @@ class NbcnBrowser:
 
             df = df[df["year"] < datetime.now().year]
             df = df.sort_values(["year", "month"])
-            df["z_axis"] = df["year"] + df["month"] / 12
             return df
 
+        st.markdown(self.station_link(row))
         station = row.iloc[0]["station"]
-        st.markdown(station)
         plot_options = [
             "Monthly average temperature",
             "Difference from climate normal (< 1900)",
@@ -418,7 +449,7 @@ class NbcnBrowser:
         mode = st.radio(label="Show", options=plot_options)
         mode_id = plot_options.index(mode)
         temperature_df = aggregate_data(self.data, mode_id)
-        min = np.floor(temperature_df["value"].min())
+        min = np.floor(temperature_df["value"].min()) - 0.5
         max = min + np.ceil(temperature_df["value"].max()) + 0.5
         title = [
             f"Spiral View of average monthly temperature at {station}",
@@ -429,3 +460,24 @@ class NbcnBrowser:
         plots.line_chart_3d(temperature_df, settings)
         with st.expander("Show Data", expanded=False):
             st.table(temperature_df[["year", "month", "value"]])
+
+    def get_station(self):
+        text = "Select a station"
+        with st.expander(text, expanded=True):
+            st.markdown(
+                f"🔗[Swiss National Basic Climatological Network (Swiss NBCN) stations](https://www.meteoswiss.admin.ch/weather/measurement-systems/land-based-stations/swiss-national-basic-climatological-network.html) ({len(self.station_list_disp)})"
+            )
+            settings = {
+                "selection_mode": "single",
+                "fit_columns_on_grid_load": False,
+                "height": 300,
+            }
+            sel_row = show_table(self.station_list_disp, cols=[], settings=settings)
+        if len(sel_row) > 0:
+            self.sel_station = sel_row.iloc[0]["id"]
+            return sel_row
+
+    def show_info(self):
+        with open("./info.md") as f:
+            text = f.read()
+        st.markdown(text)

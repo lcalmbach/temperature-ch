@@ -5,7 +5,13 @@ import random, string
 from datetime import datetime
 import time
 import base64
-from st_aggrid import GridOptionsBuilder, AgGrid, DataReturnMode, GridUpdateMode
+from st_aggrid import (
+    GridOptionsBuilder,
+    AgGrid,
+    DataReturnMode,
+    GridUpdateMode,
+    AgGridTheme,
+)
 from enum import Enum
 
 
@@ -99,7 +105,7 @@ def show_table(df: pd.DataFrame, cols=[], settings={}):
     grid_response = AgGrid(
         df,
         gridOptions=gridOptions,
-        theme='dark',
+        # theme=AgGridTheme.MATERIAL,
         height=settings["height"],
         data_return_mode=DataReturnMode.AS_INPUT,
         update_mode=settings["update_mode"],
@@ -109,6 +115,10 @@ def show_table(df: pd.DataFrame, cols=[], settings={}):
     )
     selected = grid_response["selected_rows"]
     selected_df = pd.DataFrame(selected)
+    # Select first row
+    if len(selected_df) == 0:
+        selected_df = df[df["id"] == "ALT"]
+
     return selected_df
 
 

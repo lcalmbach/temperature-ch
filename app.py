@@ -8,10 +8,10 @@ import os
 from helper import show_table
 from swiss_nbcn import NbcnBrowser
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 __author__ = "Lukas Calmbach"
 __author_email__ = "lcalmbach@gmail.com"
-VERSION_DATE = "2023-19-01"
+VERSION_DATE = "2023-21-01"
 my_name = "Swiss NBCN Browser"
 SOURCE_URL = "https://opendata.swiss/de/dataset/klimamessnetz-tageswerte"
 GIT_REPO = "https://github.com/lcalmbach/temperature-ch"
@@ -23,7 +23,7 @@ def init():
         initial_sidebar_state="auto",
         page_title=my_name,
         page_icon="🌍",
-        layout='wide',
+        layout="wide",
     )
     load_css()
     st.sidebar.markdown(f"## {my_name}")
@@ -31,7 +31,7 @@ def init():
 
 def load_css():
     with open("./style.css") as f:
-        st.markdown('<style>{}</style>'.format(f.read()), unsafe_allow_html=True)
+        st.markdown("<style>{}</style>".format(f.read()), unsafe_allow_html=True)
 
 
 def get_info():
@@ -51,41 +51,39 @@ def main():
         "Time Series",
         "3D Spiral View",
         "Data",
+        "About NBCN Browser",
     ]
     with st.sidebar:
         # https://icons.getbootstrap.com/
         menu_action = option_menu(
             None,
             menu_options,
-            icons=["table", "graph-up", "badge-3d", "server"],
+            icons=["table", "graph-up", "badge-3d", "server", "info"],
             menu_icon="cast",
             default_index=0,
         )
+    menu_id = menu_options.index(menu_action)
+    app = NbcnBrowser()
 
-    text = "Select a station"
-    with st.expander(text, expanded=True):
-        st.markdown("[Swiss National Basic Climatological Network (Swiss NBCN) stations](https://www.meteoswiss.admin.ch/weather/measurement-systems/land-based-stations/swiss-national-basic-climatological-network.html)")
-        app = NbcnBrowser()
-        df_stations = app.station_list_disp
-        settings = {"selection_mode": "single", "fit_columns_on_grid_load": False, 'height': 300}
-        sel_row = show_table(df_stations, cols=[], settings=settings)
-    
+    sel_row = pd.DataFrame()
+    if menu_id < (len(menu_options) - 1):
+        sel_row = app.get_station()
+
     if len(sel_row) > 0:
-        id = sel_row.iloc[0]["id"]
-        app.sel_station = id
         if menu_options.index(menu_action) == 0:
             app.show_summary(sel_row)
         elif menu_options.index(menu_action) == 1:
-            app.get_user_options('time-series')
+            app.get_user_options("time-series")
             app.show_time_series(sel_row)
         elif menu_options.index(menu_action) == 2:
             app.show_spiral(sel_row)
         elif menu_options.index(menu_action) == 3:
-            app.get_user_options('data')
+            app.get_user_options("data")
             app.show_data(sel_row)
-    st.sidebar.markdown(
-        get_info(), unsafe_allow_html=True
-    )
+    elif menu_options.index(menu_action) == 4:
+        app.show_info()
+
+    st.sidebar.markdown(get_info(), unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
