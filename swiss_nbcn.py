@@ -1,11 +1,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
+from prophet import Prophet
+
+# from sklearn.metrics import mean_absolute_error
 
 import plots
-from helper import show_table
+from helper import show_table, add_time_columns
 
 
 URL_STATIONS = "https://data.geo.admin.ch/ch.meteoschweiz.klima/nbcn-tageswerte/liste-download-nbcn-d.csv"
@@ -33,6 +36,7 @@ class NbcnBrowser:
             "cooling_days": "Cooling days",
             "heating_days": "Heating days",
         }
+        self.show_prediction = False
 
     @property
     def sel_station(self):
@@ -324,6 +328,20 @@ class NbcnBrowser:
             if type == "time-series":
                 self.show_regression = st.checkbox("Show Regression")
                 self.show_average = st.checkbox("Show Average")
+                ok = (self.parameter == "temp_avg") & (
+                    self.resolution_options.index(self.resolution) < 2
+                )
+                if ok:
+                    self.show_prediction = st.checkbox("Show Prediction")
+                    if self.show_prediction:
+                        self.prediction_end_year = st.number_input(
+                            label="End of Prediction Interval",
+                            min_value=datetime.now().year + 1,
+                            max_value=datetime.now().year + 100,
+                            value=datetime.now().year + 10,
+                        )
+                else:
+                    self.show_prediction = False
 
     def filter_data(self):
         if self.resolution_options.index(self.resolution) == 2:
@@ -419,7 +437,14 @@ class NbcnBrowser:
             plot_df[self.parameter].min() - 1,
             plot_df[self.parameter].max() + 1,
         ]
+        if self.show_prediction:
+            settings["predict_df"] = self.predict()
+            settings["predict_x"] = self.x_var
+            settings["predict_y"] = "yhat"
+
         plots.time_series_chart(plot_df, settings)
+        if self.show_prediction:
+            self.predict()
 
     def show_spiral(self, row):
         def aggregate_data(df, datasource_id: int):
@@ -481,3 +506,44 @@ class NbcnBrowser:
         with open("./info.md") as f:
             text = f.read()
         st.markdown(text)
+
+    def predict(self):
+        fields = ["year", "month", "date", "temp_avg"]
+        df = self.data[fields]
+        if self.years != [self.year_min, self.year_max]:
+            df = df[(df["year"] >= self.years[0]) & (df["year"] <= self.years[1])]
+        df.columns = ["year", "month", "ds", "y"]
+        # create test dataset, remove last 12 month
+        train = df[df["year"] < datetime.now().year]
+        model = Prophet()
+        model.fit(train)
+        # define the period for which we want a prediction
+        start_predict = df["ds"].max() + timedelta(days=1)
+        end_predict = datetime(self.prediction_end_year, 12, 31)
+        future = pd.date_range(start=start_predict, end=end_predict, freq="D")
+        future = pd.DataFrame(future)
+        future.columns = ["ds"]
+        # use the model to make a forecast
+        forecast = model.predict(future)
+
+        forecast = forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+
+        if self.resolution_options.index(self.resolution) == 0:
+            forecast = add_time_columns(forecast, "ds", ["year", "year_date"])
+            all_fields = ["year_date", "year", "yhat", "yhat_lower", "yhat_upper"]
+            forecast = (
+                forecast[all_fields]
+                .groupby(["year", "year_date"])
+                .agg("mean")
+                .reset_index()
+            )
+        elif self.resolution_options.index(self.resolution) == 1:
+            forecast = add_time_columns(forecast, "ds", ["year", "month_date"])
+            all_fields = ["month_date", "year", "yhat", "yhat_lower", "yhat_upper"]
+            forecast = (
+                forecast[all_fields]
+                .groupby(["year", "month_date"])
+                .agg("mean")
+                .reset_index()
+            )
+        return forecast

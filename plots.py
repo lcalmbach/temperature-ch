@@ -188,6 +188,17 @@ def time_series_chart(df, settings):
             tooltip=settings["tooltip"],
         )
     )
+    if "y_lower" in settings:
+        plot += (
+            alt.Chart(df)
+            .mark_area(opacity=0.5)
+            .encode(
+                x=f"{settings['x']}:T",
+                y=settings["y_lower"],
+                y2=settings["y_upper"],
+            )
+        )
+
     if "show_regression" in settings:
         if settings["show_regression"]:
             line = plot.transform_regression(settings["x"], settings["y"]).mark_line(
@@ -224,6 +235,18 @@ def time_series_chart(df, settings):
         )
         plot += line
 
+    if "predict_df" in settings:
+        plot += (
+            alt.Chart(settings["predict_df"])
+            .mark_line(color="orange")
+            .encode(
+                x=alt.X(
+                    f"{settings['predict_x']}:T", title=settings["x_title"]
+                ),  # , scale=alt.Scale(domain=settings['x_domain']), ),
+                y=alt.Y(f"{settings['predict_y']}:Q"),
+                # tooltip=settings["predict_tooltip"],
+            )
+        )
     plot = plot.properties(
         width=settings["width"], height=settings["height"], title=title
     )

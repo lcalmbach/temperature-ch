@@ -8,10 +8,10 @@ import os
 from helper import show_table
 from swiss_nbcn import NbcnBrowser
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 __author__ = "Lukas Calmbach"
 __author_email__ = "lcalmbach@gmail.com"
-VERSION_DATE = "2023-21-01"
+VERSION_DATE = "2023-22-01"
 my_name = "Swiss.NBCN Data Explorer"
 SOURCE_URL = "https://opendata.swiss/de/dataset/klimamessnetz-tageswerte"
 GIT_REPO = "https://github.com/lcalmbach/temperature-ch"

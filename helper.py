@@ -149,6 +149,48 @@ def time_lin_reg(df: pd.DataFrame(), x: str, y: str):
     return linreg
 
 
+def add_time_columns(df: pd.DataFrame, time_col: str, cols: list):
+    def get_rename_dicts():
+        col_dict = {}
+        rev_dict = {}
+        if "year" in df.columns:
+            col_dict["year"] = "_year"
+            rev_dict["_year"] = "year"
+        if "month" in df.columns:
+            col_dict["month"] = "_month"
+            rev_dict["_month"] = "month"
+        if "day" in df.columns:
+            col_dict["day"] = "_day"
+            rev_dict["_day"] = "day"
+        if len(col_dict) > 0:
+            df.rename(columns=col_dict, inplace=True)
+        return df, rev_dict
+
+    df, rev_dict = get_rename_dicts()
+    if "year_date" in cols:
+        df["year"] = df[time_col].dt.year
+        df["month"] = 7
+        df["day"] = 15
+        df["year_date"] = pd.to_datetime(
+            df[["year", "month", "day"]],
+        )
+        df.drop(columns=["year", "month", "day"], axis=1, inplace=True)
+
+    if "month_date" in cols:
+        df["year"] = df[time_col].dt.year
+        df["day"] = 15
+        df["month"] = df[time_col].dt.month
+        df["month_date"] = pd.to_datetime(df[["year", "month", "day"]])
+        df.drop(columns=["year", "month", "day"], axis=1, inplace=True)
+    if len(rev_dict) > 0:
+        df.rename(columns=rev_dict, inplace=True)
+    if "year" in cols:
+        df["year"] = df[time_col].dt.year
+    if "month" in cols:
+        df["month"] = df[time_col].dt.month
+    return df
+
+
 class ExtendedEnum(Enum):
     @classmethod
     def list(cls):
